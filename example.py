@@ -38,10 +38,10 @@ if __name__ == "__main__":
     ]
     box_info = ('box', None, all_vertices, all_face_meshes, processor.cut_box)
 
-    # processor.final_shapes.append(box_info)
-    #
-    # processor.compute_convex_hull_all()
-    # fnum = processor.output(obj_filename="test12343212.obj")
+    processor.final_shapes.append(box_info)
+
+    processor.compute_convex_hull_all()
+    fnum = processor.output(obj_filename="test12343212.obj")
 
 
 
