@@ -126,26 +126,26 @@ class BounderBoxProcessor(STEPFileProcessor):
         return bounding_box
 
     def check_shape(self, shape, vertices):
-        # bounding_box = self.get_bounding_box(shape)
-        # min_point = bounding_box.CornerMin()
-        # max_point = bounding_box.CornerMax()
-        # box_num = [min_point.X(), min_point.Y(), min_point.Z(),
-        #            max_point.X(), max_point.Y(), max_point.Z()]
-        # if self.show_detail:
-        #     print(f"    Min point: ({min_point.X()}, {min_point.Y()}, {min_point.Z()})")
-        #     print(f"    Max point: ({max_point.X()}, {max_point.Y()}, {max_point.Z()})")
-        # if box_num[0] < self.bounder_box[0]:
-        #     self.bounder_box[0] = box_num[0]
-        # if box_num[1] < self.bounder_box[1]:
-        #     self.bounder_box[1] = box_num[1]
-        # if box_num[2] < self.bounder_box[2]:
-        #     self.bounder_box[2] = box_num[2]
-        # if box_num[3] > self.bounder_box[3]:
-        #     self.bounder_box[3] = box_num[3]
-        # if box_num[4] > self.bounder_box[4]:
-        #     self.bounder_box[4] = box_num[4]
-        # if box_num[5] > self.bounder_box[5]:
-        #     self.bounder_box[5] = box_num[5]
+        bounding_box = self.get_bounding_box(shape)
+        min_point = bounding_box.CornerMin()
+        max_point = bounding_box.CornerMax()
+        box_num = [min_point.X(), min_point.Y(), min_point.Z(),
+                   max_point.X(), max_point.Y(), max_point.Z()]
+        if self.show_detail:
+            print(f"    Min point: ({min_point.X()}, {min_point.Y()}, {min_point.Z()})")
+            print(f"    Max point: ({max_point.X()}, {max_point.Y()}, {max_point.Z()})")
+        if box_num[0] < self.bounder_box[0]:
+            self.bounder_box[0] = box_num[0]
+        if box_num[1] < self.bounder_box[1]:
+            self.bounder_box[1] = box_num[1]
+        if box_num[2] < self.bounder_box[2]:
+            self.bounder_box[2] = box_num[2]
+        if box_num[3] > self.bounder_box[3]:
+            self.bounder_box[3] = box_num[3]
+        if box_num[4] > self.bounder_box[4]:
+            self.bounder_box[4] = box_num[4]
+        if box_num[5] > self.bounder_box[5]:
+            self.bounder_box[5] = box_num[5]
         return 0
 
     def generate_face_samples(self, face):
@@ -210,19 +210,19 @@ class BounderBoxProcessor(STEPFileProcessor):
         return v_point
 
     def cal_cutbox(self):
-        # v_farest = self.compute_max_distance_per_face()
-        # self.cut_box[0] = v_farest['left'][0]
-        # self.cut_box[1] = v_farest['bottom'][1]
-        # self.cut_box[2] = v_farest['back'][2]
-        # self.cut_box[3] = v_farest['right'][0]
-        # self.cut_box[4] = v_farest['top'][1]
-        # self.cut_box[5] = v_farest['front'][2]
-        self.cut_box[0] = 500
-        self.cut_box[1] = 151
-        self.cut_box[2] = -2187.5
-        self.cut_box[3] = 6900
-        self.cut_box[4] = 2165
-        self.cut_box[5] = 37.5
+        v_farest = self.compute_max_distance_per_face()
+        self.cut_box[0] = v_farest['left'][0]
+        self.cut_box[1] = v_farest['bottom'][1]
+        self.cut_box[2] = v_farest['back'][2]
+        self.cut_box[3] = v_farest['right'][0]
+        self.cut_box[4] = v_farest['top'][1]
+        self.cut_box[5] = v_farest['front'][2]
+        # self.cut_box[0] = 500
+        # self.cut_box[1] = 151
+        # self.cut_box[2] = -2187.5
+        # self.cut_box[3] = 6900
+        # self.cut_box[4] = 2165
+        # self.cut_box[5] = 37.5
 
     def is_remove(self, cname, shape, vertices, result):
         # 具体条件：检查是否存在至少一个顶点不在任何已接受凸包内
