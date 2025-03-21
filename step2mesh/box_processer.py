@@ -5,14 +5,48 @@ from scipy.spatial import KDTree, QhullError
 from step2mesh.stepfile_processer import STEPFileProcessor
 from scipy.spatial import ConvexHull
 
+def point_to_hull_surface_distance(point, hull):
+    """
+    计算点到三维凸包表面的最小距离（近似值）
+
+    参数：
+        point : numpy数组, 形状(3,) 三维点坐标
+        hull : scipy.spatial.ConvexHull对象
+
+    返回：
+        float: 点到凸包表面的最小距离（正数）
+    """
+    min_distance = np.inf
+    for eq in hull.equations:
+        # 提取平面方程参数 Ax + By + Cz + D = 0
+        A, B, C, D = eq
+
+        # 计算有符号距离（无需绝对值）
+        signed_distance = A * point[0] + B * point[1] + C * point[2] + D
+
+        # 计算法向量模长
+        norm = np.sqrt(A ** 2 + B ** 2 + C ** 2)
+
+        # 计算绝对距离
+        distance = abs(signed_distance) / norm
+
+        # 更新最小距离
+        if distance < min_distance:
+            min_distance = distance
+
+    return min_distance
+
 class BounderBoxProcessor(STEPFileProcessor):
 
-    def __init__(self, step_file, lin_deflection=0.2, ang_deflection=0.36, show_detail=False, scale=1.0):
+    def __init__(self, step_file,dist_tor = 5, lin_deflection=0.2, ang_deflection=0.36, show_detail=False, scale=1.0, p=0):
         super().__init__(step_file, lin_deflection=lin_deflection, ang_deflection=ang_deflection, show_detail=show_detail)
         self.scale = scale
+        self.p = p
         self.cut_box = [9999.0, 9999.0, 9999.0, -9999.0, -9999.0, -9999.0]
         self.bounder_box = [9999.0, 9999.0, 9999.0, -9999.0, -9999.0, -9999.0]
         self.convex_hulls = []
+        self.dist_tor = dist_tor
+
 
     def is_point_in_3d_convex_hull(self, point, hull, tolerance=1e-10):
         """
@@ -63,7 +97,7 @@ class BounderBoxProcessor(STEPFileProcessor):
         for shape_name, hull in sorted_convex_hulls:
             # 获取当前凸包的所有顶点
             vertices = hull.points[hull.vertices]
-            print(f"{shape_name} hulls points: {vertices}")
+            # print(f"{shape_name} hulls points: {vertices}")
 
             # 检查是否存在至少一个顶点不在任何已接受凸包内
             has_exterior_point = False
@@ -92,26 +126,26 @@ class BounderBoxProcessor(STEPFileProcessor):
         return bounding_box
 
     def check_shape(self, shape, vertices):
-        bounding_box = self.get_bounding_box(shape)
-        min_point = bounding_box.CornerMin()
-        max_point = bounding_box.CornerMax()
-        box_num = [min_point.X(), min_point.Y(), min_point.Z(),
-                   max_point.X(), max_point.Y(), max_point.Z()]
-        if self.show_detail:
-            print(f"    Min point: ({min_point.X()}, {min_point.Y()}, {min_point.Z()})")
-            print(f"    Max point: ({max_point.X()}, {max_point.Y()}, {max_point.Z()})")
-        if box_num[0] < self.bounder_box[0]:
-            self.bounder_box[0] = box_num[0]
-        if box_num[1] < self.bounder_box[1]:
-            self.bounder_box[1] = box_num[1]
-        if box_num[2] < self.bounder_box[2]:
-            self.bounder_box[2] = box_num[2]
-        if box_num[3] > self.bounder_box[3]:
-            self.bounder_box[3] = box_num[3]
-        if box_num[4] > self.bounder_box[4]:
-            self.bounder_box[4] = box_num[4]
-        if box_num[5] > self.bounder_box[5]:
-            self.bounder_box[5] = box_num[5]
+        # bounding_box = self.get_bounding_box(shape)
+        # min_point = bounding_box.CornerMin()
+        # max_point = bounding_box.CornerMax()
+        # box_num = [min_point.X(), min_point.Y(), min_point.Z(),
+        #            max_point.X(), max_point.Y(), max_point.Z()]
+        # if self.show_detail:
+        #     print(f"    Min point: ({min_point.X()}, {min_point.Y()}, {min_point.Z()})")
+        #     print(f"    Max point: ({max_point.X()}, {max_point.Y()}, {max_point.Z()})")
+        # if box_num[0] < self.bounder_box[0]:
+        #     self.bounder_box[0] = box_num[0]
+        # if box_num[1] < self.bounder_box[1]:
+        #     self.bounder_box[1] = box_num[1]
+        # if box_num[2] < self.bounder_box[2]:
+        #     self.bounder_box[2] = box_num[2]
+        # if box_num[3] > self.bounder_box[3]:
+        #     self.bounder_box[3] = box_num[3]
+        # if box_num[4] > self.bounder_box[4]:
+        #     self.bounder_box[4] = box_num[4]
+        # if box_num[5] > self.bounder_box[5]:
+        #     self.bounder_box[5] = box_num[5]
         return 0
 
     def generate_face_samples(self, face):
@@ -164,48 +198,70 @@ class BounderBoxProcessor(STEPFileProcessor):
         # print(npv)
         tree = KDTree(npv)
         faces = ['front', 'back', 'left', 'right', 'top', 'bottom']
-        v_farest = {}
+        v_point = {}
 
         for face in faces:
             samples = self.generate_face_samples(face)
             distances, indexes = tree.query(samples)
-            max_distances = 0
-            v_index = -1
-            for d,i in zip(distances, indexes):
-                # print(f"d: {d}, i: {i}, p: {self.vertices[i]}")
-                if d > max_distances:
-                    max_distances = d
-                    v_index = i
-            v_farest[face] = self.vertices[v_index]
+            sorted_pairs = sorted(zip(distances, indexes), key=lambda x: x[0], reverse=True)
+            d,i = sorted_pairs[int(self.p * 100)]
+            v_point[face] = self.vertices[i]
 
-        return v_farest
+        return v_point
 
     def cal_cutbox(self):
-        v_farest = self.compute_max_distance_per_face()
-        self.cut_box[0] = v_farest['left'][0]
-        self.cut_box[1] = v_farest['bottom'][1]
-        self.cut_box[2] = v_farest['back'][2]
-        self.cut_box[3] = v_farest['right'][0]
-        self.cut_box[4] = v_farest['top'][1]
-        self.cut_box[5] = v_farest['front'][2]
+        # v_farest = self.compute_max_distance_per_face()
+        # self.cut_box[0] = v_farest['left'][0]
+        # self.cut_box[1] = v_farest['bottom'][1]
+        # self.cut_box[2] = v_farest['back'][2]
+        # self.cut_box[3] = v_farest['right'][0]
+        # self.cut_box[4] = v_farest['top'][1]
+        # self.cut_box[5] = v_farest['front'][2]
+        self.cut_box[0] = 500
+        self.cut_box[1] = 151
+        self.cut_box[2] = -2187.5
+        self.cut_box[3] = 6900
+        self.cut_box[4] = 2165
+        self.cut_box[5] = 37.5
 
     def is_remove(self, cname, shape, vertices, result):
         # 具体条件：检查是否存在至少一个顶点不在任何已接受凸包内
 
+        all_accepted_name = set()
         for point in vertices:
             # 检测点是否被任何一个已接受的凸包包含
             is_covered = False
+            first_accepted_name = ''
+
             for accepted_name, accepted_hull in self.convex_hulls:
                 if accepted_name == cname:
                     continue
-                if self.is_point_in_3d_convex_hull(point, accepted_hull):
+                if self.is_point_in_3d_convex_hull(point, accepted_hull) and point_to_hull_surface_distance(point, accepted_hull) < self.dist_tor:
                     is_covered = True
+                    # first_accepted_name = accepted_name
                     break  # 发现包含立即跳出循环
             # 只要有一个点未被覆盖，则保留当前形状
             if not is_covered:
                 if self.show_detail:
                     print(f"{cname}点{point}未被其他凸包覆盖，保留形状")
                 return False
+            # all_accepted_name.add(first_accepted_name)
+            # if cname == 'NAUO1969' or cname == 'NAUO1932' or cname == 'NAUO2253':
+            #     print(f"{cname}'s point({point}) is coverd by {first_accepted_name})")
+
+        # if len(all_accepted_name) == 1:
+        #     # 全部点被同一个凸包覆盖，计算距离
+        #     one_accepted_name = list(all_accepted_name)[0]
+        #     one_accepted_hull = None
+        #     for accepted_name, accepted_hull in self.convex_hulls:
+        #         if accepted_name == one_accepted_name:
+        #             one_accepted_hull = accepted_hull
+        #             break
+        #     for point in vertices:
+        #         point_dits = point_to_hull_surface_distance(point, one_accepted_hull)
+        #         if point_dits < self.dist_tor:
+        #             return False
+
         # 所有点被覆盖，则删除当前形状
         if self.show_detail:
             print(f"{cname}点全部被其他凸包覆盖，删除形状")

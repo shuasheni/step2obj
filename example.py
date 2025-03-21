@@ -4,11 +4,8 @@ from step2mesh.box_processer import BounderBoxProcessor
 if __name__ == "__main__":
     # 4083028面 => 2200364面
 
-    processor = BounderBoxProcessor(step_file="501000000797UTF.STEP", show_detail=True, scale=0.8)
+    processor = BounderBoxProcessor(step_file="501000000797UTF.STEP", show_detail=True, scale=0.9, p=0.1)
     assert processor.travel(), "not assembly"
-
-    print(f"bounding box: ({processor.bounder_box[0]}, {processor.bounder_box[1]}, {processor.bounder_box[2]}), "
-          f"({processor.bounder_box[3]}, {processor.bounder_box[4]}, {processor.bounder_box[5]})")
     processor.cal_cutbox()
     print(f"cut box: ({processor.cut_box[0]}, {processor.cut_box[1]}, {processor.cut_box[2]}), "
           f"({processor.cut_box[3]}, {processor.cut_box[4]}, {processor.cut_box[5]})")
@@ -24,24 +21,24 @@ if __name__ == "__main__":
     ]
     all_face_meshes = [
         # 底面
-        [[1, 2, 4], [1, 4, 3]],
+        [[0, 1, 3], [0, 3, 2]],
         # 顶面
-        [[5, 6, 8], [5, 8, 7]],
+        [[4, 5, 7], [4, 7, 6]],
         # 前面
-        [[1, 2, 6], [1, 6, 5]],
+        [[0, 1, 5], [0, 5, 4]],
         # 后面
-        [[3, 4, 8], [3, 8, 7]],
+        [[2, 3, 7], [2, 7, 6]],
         # 左面
-        [[1, 3, 7], [1, 7, 5]],
+        [[0, 2, 6], [0, 6, 4]],
         # 右面
-        [[2, 4, 8], [2, 8, 6]]
+        [[1, 3, 7], [1, 7, 5]]
     ]
     box_info = ('box', None, all_vertices, all_face_meshes, processor.cut_box)
 
     processor.final_shapes.append(box_info)
 
     processor.compute_convex_hull_all()
-    fnum = processor.output(obj_filename="test12343212.obj")
+    fnum = processor.output(obj_filename="test123432123.obj")
 
 
 
