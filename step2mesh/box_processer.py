@@ -246,21 +246,7 @@ class BounderBoxProcessor(STEPFileProcessor):
             if (result[3] < self.cut_box[0] or result[4] < self.cut_box[1] or result[5] < self.cut_box[2] or
                     result[0] > self.cut_box[3] or result[1] > self.cut_box[4] or result[2] > self.cut_box[5]):
                 print("out")
-
-
-
-        # if len(all_accepted_name) == 1:
-        #     # 全部点被同一个凸包覆盖，计算距离
-        #     one_accepted_name = list(all_accepted_name)[0]
-        #     one_accepted_hull = None
-        #     for accepted_name, accepted_hull in self.convex_hulls:
-        #         if accepted_name == one_accepted_name:
-        #             one_accepted_hull = accepted_hull
-        #             break
-        #     for point in vertices:
-        #         point_dits = point_to_hull_surface_distance(point, one_accepted_hull)
-        #         if point_dits < self.dist_tor:
-        #             return False
+                # 保留判断条件写在这
 
         # 删除当前形状
         if self.show_detail:
