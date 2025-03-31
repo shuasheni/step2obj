@@ -38,7 +38,7 @@ if __name__ == "__main__":
     processor.final_shapes.append(box_info)
 
     processor.compute_convex_hull_all()
-    fnum = processor.output(obj_filename="test123432123.obj")
+    fnum = processor.output(obj_filename="testaaaaaaa.obj")
 
 
 

@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.Bnd import Bnd_Box
 import numpy as np
@@ -44,17 +46,18 @@ class BounderBoxProcessor(STEPFileProcessor):
         self.p = p
         self.cut_box = [9999.0, 9999.0, 9999.0, -9999.0, -9999.0, -9999.0]
         self.bounder_box = [9999.0, 9999.0, 9999.0, -9999.0, -9999.0, -9999.0]
+        self.hull_exist = defaultdict(bool)
         self.convex_hulls = []
         self.dist_tor = dist_tor
 
 
     def is_point_in_3d_convex_hull(self, point, hull, tolerance=1e-10):
         """
-        判断点是否在三维凸包内（包括面上）
+        判断点是否在三维凸包内
         :param point: 待测点，形状为 (3,) 的 numpy 数组
         :param hull: scipy.spatial.ConvexHull 对象
         :param tolerance: 浮点误差容忍度
-        :return: True（在内部或面上）或 False
+        :return: True（在内部）或 False
         """
 
         for eq in hull.equations:
@@ -92,33 +95,28 @@ class BounderBoxProcessor(STEPFileProcessor):
         :param sorted_convex_hulls: 已按体积降序排序的凸包列表
         :return: 过滤后的凸包列表 accepted_convex_hulls
         """
-        accepted_convex_hulls = []
 
         for shape_name, hull in sorted_convex_hulls:
             # 获取当前凸包的所有顶点
-            vertices = hull.points[hull.vertices]
-            # print(f"{shape_name} hulls points: {vertices}")
-
-            # 检查是否存在至少一个顶点不在任何已接受凸包内
-            has_exterior_point = False
-
-            for point in vertices:
-                # 检测点是否被任何一个已接受的凸包包含
-                is_covered = False
-                for accepted_name, accepted_hull in accepted_convex_hulls:
-                    if self.is_point_in_3d_convex_hull(point, accepted_hull):
-                        is_covered = True
-                        break  # 发现包含立即跳出循环
-                # 只要有一个点未被覆盖，则保留当前凸包
-                if not is_covered:
-                    has_exterior_point = True
-                    break  # 发现外部点立即停止检测
+            is_covered = False
+            for accepted_hull_name, accepted_hull in self.convex_hulls:
+                point_not_covered = False
+                for vertex in hull.points[hull.vertices]:
+                    if not self.is_point_in_3d_convex_hull(vertex, accepted_hull):
+                        point_not_covered = True
+                        break
+                if not point_not_covered:
+                    is_covered = True
+                    break
 
             if self.show_detail:
-                print(f"形状 '{shape_name}' 凸包保留? {has_exterior_point}")
+                print(f"形状 '{shape_name}' 凸包保留? {not is_covered}")
 
-            if has_exterior_point:
+            if not is_covered:
                 self.convex_hulls.append((shape_name, hull))
+                self.hull_exist[shape_name] = True
+            else:
+                self.hull_exist[shape_name] = False
 
     def get_bounding_box(self, shape):
         bounding_box = Bnd_Box()
@@ -146,7 +144,7 @@ class BounderBoxProcessor(STEPFileProcessor):
             self.bounder_box[4] = box_num[4]
         if box_num[5] > self.bounder_box[5]:
             self.bounder_box[5] = box_num[5]
-        return 0
+        return box_num
 
     def generate_face_samples(self, face):
         xl = self.bounder_box[3] - self.bounder_box[0]
@@ -210,44 +208,46 @@ class BounderBoxProcessor(STEPFileProcessor):
         return v_point
 
     def cal_cutbox(self):
-        v_farest = self.compute_max_distance_per_face()
-        self.cut_box[0] = v_farest['left'][0]
-        self.cut_box[1] = v_farest['bottom'][1]
-        self.cut_box[2] = v_farest['back'][2]
-        self.cut_box[3] = v_farest['right'][0]
-        self.cut_box[4] = v_farest['top'][1]
-        self.cut_box[5] = v_farest['front'][2]
-        # self.cut_box[0] = 500
-        # self.cut_box[1] = 151
-        # self.cut_box[2] = -2187.5
-        # self.cut_box[3] = 6900
-        # self.cut_box[4] = 2165
-        # self.cut_box[5] = 37.5
+        # v_farest = self.compute_max_distance_per_face()
+        # self.cut_box[0] = v_farest['left'][0]
+        # self.cut_box[1] = v_farest['bottom'][1]
+        # self.cut_box[2] = v_farest['back'][2]
+        # self.cut_box[3] = v_farest['right'][0]
+        # self.cut_box[4] = v_farest['top'][1]
+        # self.cut_box[5] = v_farest['front'][2]
+        self.cut_box[0] = 500
+        self.cut_box[1] = 151
+        self.cut_box[2] = -2187.5
+        self.cut_box[3] = 6900
+        self.cut_box[4] = 2165
+        self.cut_box[5] = 37.5
 
     def is_remove(self, cname, shape, vertices, result):
         # 具体条件：检查是否存在至少一个顶点不在任何已接受凸包内
+        if self.hull_exist[cname]:
+            # 直接跳过凸包未被接受的形状
+            for point in vertices:
+                # 检测点是否被任何一个已接受的凸包包含
+                is_covered = False
 
-        all_accepted_name = set()
-        for point in vertices:
-            # 检测点是否被任何一个已接受的凸包包含
-            is_covered = False
-            first_accepted_name = ''
+                for accepted_name, accepted_hull in self.convex_hulls:
+                    if accepted_name == cname:
+                        continue
+                    if self.is_point_in_3d_convex_hull(point, accepted_hull):
+                        is_covered = True
+                        break  # 发现包含立即跳出循环
+                # 只要有一个点未被覆盖，则保留当前形状
+                if not is_covered:
+                    if self.show_detail:
+                        print(f"{cname}点{point}未被其他凸包覆盖，保留形状")
+                    return False
 
-            for accepted_name, accepted_hull in self.convex_hulls:
-                if accepted_name == cname:
-                    continue
-                if self.is_point_in_3d_convex_hull(point, accepted_hull) and point_to_hull_surface_distance(point, accepted_hull) < self.dist_tor:
-                    is_covered = True
-                    # first_accepted_name = accepted_name
-                    break  # 发现包含立即跳出循环
-            # 只要有一个点未被覆盖，则保留当前形状
-            if not is_covered:
-                if self.show_detail:
-                    print(f"{cname}点{point}未被其他凸包覆盖，保留形状")
-                return False
-            # all_accepted_name.add(first_accepted_name)
-            # if cname == 'NAUO1969' or cname == 'NAUO1932' or cname == 'NAUO2253':
-            #     print(f"{cname}'s point({point}) is coverd by {first_accepted_name})")
+        # 这里对初步确定要删除的形状再加条件判断是否保留
+            if (result[3] < self.cut_box[0] or result[4] < self.cut_box[1] or result[5] < self.cut_box[2] or
+                    result[0] > self.cut_box[3] or result[1] > self.cut_box[4] or result[2] > self.cut_box[5]):
+                print("out")
+
+
 
         # if len(all_accepted_name) == 1:
         #     # 全部点被同一个凸包覆盖，计算距离
@@ -262,7 +262,7 @@ class BounderBoxProcessor(STEPFileProcessor):
         #         if point_dits < self.dist_tor:
         #             return False
 
-        # 所有点被覆盖，则删除当前形状
+        # 删除当前形状
         if self.show_detail:
             print(f"{cname}点全部被其他凸包覆盖，删除形状")
         return True
